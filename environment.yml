@@ -1,0 +1,45 @@
+name: asic_dev
+channels:
+  - litex-hub    # 优先级最高：提供最新的 FPGA/ASIC 工具 (Yosys, Verilator)
+  - conda-forge  # 优先级次之：提供 Python, Cocotb, Verible, GTKwave
+  - nodefaults
+dependencies:
+  # --- 语言基础 ---
+  - python=3.11.*
+  - pip
+
+  # --- 核心仿真与验证 ---
+  # 指定 litex-hub 源的 verilator，确保版本 >= 5.036
+  - litex-hub::verilator>=5.036
+  - cocotb>=2.0
+  - cocotb-test
+  - cocotb-bus
+  - pytest
+  # 备用仿真器
+  - iverilog>=12.0
+
+  # --- 综合与 PnR 辅助 ---
+  - yosys
+  # graphviz 用于 yosys show 命令生成原理图
+  - graphviz
+
+  # --- 代码检查 ---
+  - verible
+
+  # --- 波形查看 ---
+  - gtkwave
+
+  # --- PDK 管理 ---
+  - volare
+
+  # --- 编译工具链 (CocoTB 运行时需要) ---
+  - make
+  - cmake
+  - ninja
+  # 这里的编译器用于 Python 库的编译 (如 cocotb 扩展)
+  - gxx_linux-64
+
+  # --- 科学计算栈 ---
+  - numpy
+  - scipy
+  - matplotlib
