@@ -1,0 +1,38 @@
+---
+name: openv-helper
+description: The main entry point for the OpenV Development Environment. Use this for general help, project setup, environment checks, or when unsure which specific OpenV tool to use.
+---
+
+# OpenV Master Skill
+
+## Environment Configuration
+**Docker Image:** `crpi-5901rc39czlvlzc5.cn-beijing.personal.cr.aliyuncs.com/open-v/openv-dev:amd64-latest`
+**Python Venv:** `/opt/asic_env`
+**Workspace:** `/workspace`
+
+## Capabilities Overview
+I can assist you with the following ASIC/FPGA workflows. If your request matches one of these, I will use the specialized skill:
+
+* **Linting & Formatting**: (`lint.md`) for Verible/Verilator checks.
+* **Simulation**: (`cocotb-test.md`) for verifying design with Python/CocoTB.
+* **Synthesis**: (`synthesis.md`) for Yosys synthesis and OpenSTA timing.
+* **Management**: (`run-container.md`) for starting/stopping the Docker container.
+* **Maintenance**: (`build-image.md`) for updating the Docker image itself.
+
+## Common "One-Shot" Commands
+If you need to run a quick generic command inside the environment without a specific workflow:
+
+```bash
+docker run --rm -v $(pwd):/workspace [crpi-5901rc39czlvlzc5.cn-beijing.personal.cr.aliyuncs.com/open-v/openv-dev:amd64-latest](https://crpi-5901rc39czlvlzc5.cn-beijing.personal.cr.aliyuncs.com/open-v/openv-dev:amd64-latest) bash -c 'source /opt/asic_env/bin/activate && <YOUR_COMMAND_HERE>'
+
+Project Scaffolding
+
+If asked to "Initialize a new OpenV project", create this structure:
+
+    src/ (Source files)
+
+    test/ (CocoTB tests)
+
+    Makefile (See cocotb-test.md for template)
+
+    config.tcl (For synthesis)
