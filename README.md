@@ -27,7 +27,7 @@
 | 工具 | 版本 | 说明 |
 |------|------|------|
 | Python | 3.10.12 | Python 开发环境 |
-| Verilator | 4.038 | Verilog 仿真和综合 |
+| Verilator | 5.036 | Verilog 仿真和综合 |
 | Yosys | 0.9 | 逻辑综合工具 |
 | OpenSTA | 2.7.0 | 静态时序分析 |
 | Icarus Verilog | 11.0 | Verilog 仿真器 |

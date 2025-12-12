@@ -117,10 +117,25 @@ RUN pip install --no-cache-dir \
 # ==========================================
 FROM python-eda AS with-verilator
 
-# 安装 Verilator 5.036 (使用 apt 源版本)
-# 暂时使用 apt 源版本，如果 Cocotb 2.0 兼容性有问题再升级
+# Build Verilator 5.036 from source (required for CocoTB 2.0+)
+# apt version (4.038) is too old - CocoTB 2.0+ requires >= 5.036
 USER root
-RUN apt-get update && apt-get install -y verilator && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    git help2man perl python3 make autoconf g++ flex bison ccache \
+    libgoogle-perftools-dev numactl perl-doc \
+    libfl2 libfl-dev zlib1g zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp/verilator-build
+RUN git clone --depth 1 --branch v5.036 https://github.com/verilator/verilator.git \
+    && cd verilator \
+    && autoconf \
+    && ./configure --prefix=/usr/local \
+    && make -j$(nproc) \
+    && make install \
+    && cd / && rm -rf /tmp/verilator-build
+
+WORKDIR /workspace
 
 # ==========================================
 # Stage 6: Verible (Verible工具)
@@ -142,7 +157,7 @@ FROM with-verible
 # 8. 最终构建自检 (验证所有工具是否就位)
 RUN echo "=== Environment Check ===" \
     && echo "[Python] $(python --version)" \
-    && echo "[Verilator] $(verilator --version)" \
+    && echo "[Verilator] $(verilator --version | head -1)" \
     && echo "[CocoTB] $(pip show cocotb | grep Version)" \
     && echo "[Yosys] $(yosys -V)" \
     && echo "[OpenSTA] $(sta -version)" \
