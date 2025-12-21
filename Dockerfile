@@ -1,131 +1,45 @@
 # ==========================================
-# Stage 1: Builder (编译 OpenSTA & CUDD)
-# ==========================================
-FROM ubuntu:22.04 AS builder
-
-# 防止交互式提示中断构建
-ENV DEBIAN_FRONTEND=noninteractive
-
-# 1. 安装 OpenSTA 编译依赖
-# 包括: cmake, swig (关键), eigen3 (关键), tcl, zlib 等
-RUN apt-get update && apt-get install -y \
-    wget git build-essential cmake \
-    bison flex \
-    swig \
-    libtcl8.6 tcl-dev \
-    libz-dev libreadline-dev \
-    libeigen3-dev \
-    autoconf automake libtool \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /tmp/build
-
-# 2. 编译 CUDD 3.0.0 (OpenSTA 强依赖)
-RUN wget https://sourceforge.net/projects/cudd-mirror/files/cudd-3.0.0.tar.gz/download -O cudd-3.0.0.tar.gz \
-    && tar -xzvf cudd-3.0.0.tar.gz \
-    && cd cudd-3.0.0 \
-    && ./configure --enable-shared --enable-obj \
-    && make -j$(nproc) \
-    && make install \
-    && ldconfig
-
-# 3. 编译 OpenSTA
-# 使用 shallow clone 加快速度
-RUN git clone --depth 1 --recursive https://github.com/The-OpenROAD-Project/OpenSTA.git \
-    && cd OpenSTA \
-    && mkdir build && cd build \
-    && cmake .. \
-       -DCUDD_ROOT=/usr/local \
-       -DCMAKE_INSTALL_PREFIX=/usr/local \
-       -DCMAKE_BUILD_TYPE=Release \
-    && make -j$(nproc) \
-    && make install
-
-# ==========================================
-# Stage 2: Base System (系统基础环境)
+# Stage 1: Base System (系统基础环境)
 # ==========================================
 FROM ubuntu:22.04 AS base-system
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV SHELL=/bin/bash
 
-# 1. 基础系统工具和 EDA 工具 (变更频率极低)
+# 1. 基础系统工具
 RUN apt-get update && apt-get install -y \
     wget curl git make bzip2 \
     g++ \
     cmake ninja-build \
     libtcl8.6 libgomp1 graphviz \
     libreadline8 locales \
-    yosys \
-    iverilog \
-    gtkwave \
     python3 python3-pip python3-dev python3-venv \
     # 构建工具 (为 Verilator 等源码编译准备)
     build-essential autoconf automake libtool \
     flex bison \
+    help2man perl \
     && rm -rf /var/lib/apt/lists/*
 
 # 设置 UTF-8 语言环境 (Python 3 必须)
 RUN locale-gen en_US.UTF-8
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 
-# 2. 从 Builder 阶段复制编译好的 OpenSTA 及 CUDD 库 (几乎不变)
-COPY --from=builder /usr/local/bin/sta /usr/local/bin/sta
-COPY --from=builder /usr/local/lib/libcudd* /usr/local/lib/
-RUN ldconfig
+# 2. 集成 OSS-CAD-Suite (最新预编译二进制包)
+# 包含: Yosys, Nextpnr, OpenSTA, Icarus Verilog, etc.
+WORKDIR /opt
+RUN wget -q https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2025-12-18/oss-cad-suite-linux-x64-20251218.tgz -O oss-cad-suite.tgz \
+    && tar -xzf oss-cad-suite.tgz \
+    && rm oss-cad-suite.tgz
 
-# 3. 环境变量与工作目录
-ENV PDK_ROOT=/opt/pdk
-RUN mkdir -p $PDK_ROOT
-WORKDIR /workspace
-
-# ==========================================
-# Stage 3: Python Environment (Python环境配置)
-# ==========================================
-FROM base-system AS python-env
-
-# 1. 配置 Python 虚拟环境 (Location: /opt/asic_env)
-ENV PYTHON_ENV=/opt/asic_env
-ENV PATH=$PYTHON_ENV/bin:$PATH
-
-RUN mkdir -p $PYTHON_ENV \
-    && python3 -m venv $PYTHON_ENV \
-    && pip install --upgrade pip \
-    # 配置 pip 源 (可选，根据网络情况保留或删除)
-    && pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
-    && pip config set global.trusted-host mirrors.aliyun.com
+# 设置 OSS-CAD-Suite 环境变量
+ENV PATH="/opt/oss-cad-suite/bin:$PATH"
 
 # ==========================================
-# Stage 4: Python EDA Libraries (Python EDA库)
+# Stage 2: Verilator (Verilator编译)
 # ==========================================
-FROM python-env AS python-eda
-
-# 安装 Python EDA 库 (中等变更频率)
-# 锁定 Cocotb 2.0+ 以匹配 Verilator 5.036
-RUN pip install --no-cache-dir \
-    cocotb>=2.0 \
-    cocotb-test \
-    cocotb-bus \
-    pytest \
-    numpy \
-    scipy \
-    matplotlib \
-    volare
-
-# ==========================================
-# Stage 5: Verilator (Verilator编译)
-# ==========================================
-FROM python-eda AS with-verilator
+FROM base-system AS with-verilator
 
 # Build Verilator 5.036 from source (required for CocoTB 2.0+)
-# apt version (4.038) is too old - CocoTB 2.0+ requires >= 5.036
-USER root
-RUN apt-get update && apt-get install -y \
-    git help2man perl python3 make autoconf g++ flex bison ccache \
-    libgoogle-perftools-dev numactl perl-doc \
-    libfl2 libfl-dev zlib1g zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /tmp/verilator-build
 RUN git clone --depth 1 --branch v5.036 https://github.com/verilator/verilator.git \
     && cd verilator \
@@ -135,32 +49,59 @@ RUN git clone --depth 1 --branch v5.036 https://github.com/verilator/verilator.g
     && make install \
     && cd / && rm -rf /tmp/verilator-build
 
-WORKDIR /workspace
-
 # ==========================================
-# Stage 6: Verible (Verible工具)
+# Stage 3: Verible (Verible工具)
 # ==========================================
 FROM with-verilator AS with-verible
 
-# 安装 Verible (静态二进制包) - 中等变更频率
-# 使用具体的 Commit hash 版本，保证下载链接有效
+# 安装 Verible (静态二进制包)
 RUN wget -q https://github.com/chipsalliance/verible/releases/download/v0.0-4023-gc1271a00/verible-v0.0-4023-gc1271a00-linux-static-x86_64.tar.gz -O verible.tar.gz \
     && tar -xzf verible.tar.gz \
     && cp verible-*/bin/* /usr/local/bin/ \
     && rm -rf verible-* verible.tar.gz
 
 # ==========================================
-# Stage 7: Final (最终镜像)
+# Stage 4: Python & MCP Environment
 # ==========================================
-FROM with-verible
+FROM with-verible AS final
 
-# 8. 最终构建自检 (验证所有工具是否就位)
+WORKDIR /workspace
+
+# 配置 Python 虚拟环境
+ENV PYTHON_ENV=/opt/asic_env
+ENV PATH=$PYTHON_ENV/bin:$PATH
+
+RUN mkdir -p $PYTHON_ENV \
+    && python3 -m venv $PYTHON_ENV \
+    && pip install --upgrade pip \
+    && pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ \
+    && pip config set global.trusted-host mirrors.aliyun.com
+
+# 安装 EDA 和 MCP 相关 Python 库
+RUN pip install --no-cache-dir \
+    cocotb>=2.0 \
+    cocotb-test \
+    cocotb-bus \
+    pytest \
+    numpy \
+    scipy \
+    matplotlib \
+    volare \
+    fastmcp \
+    pydantic
+
+# 最终构建自检
 RUN echo "=== Environment Check ===" \
     && echo "[Python] $(python --version)" \
     && echo "[Verilator] $(verilator --version | head -1)" \
     && echo "[CocoTB] $(pip show cocotb | grep Version)" \
     && echo "[Yosys] $(yosys -V)" \
     && echo "[OpenSTA] $(sta -version)" \
+    && echo "[Icarus] $(iverilog -V | head -1)" \
     && echo "Build Verified Successfully!"
+
+# 设置执行脚本 (MCP Server)
+# COPY mcp_server.py /workspace/mcp_server.py
+# CMD ["python", "/workspace/mcp_server.py"]
 
 CMD ["/bin/bash"]
