@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "openv": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v",
+        "${PWD}:/workspace",
+        "crpi-5901rc39czlvlzc5.cn-beijing.personal.cr.aliyuncs.com/open-v/openv-mcp-server:latest"
+      ]
+    }
+  }
+}
