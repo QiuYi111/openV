@@ -2,17 +2,32 @@ import { create } from 'zustand';
 
 export type ProjectStage = 'IDLE' | 'LOCKED' | 'LINT_PASSED' | 'VERIFIED' | 'SYNTHESIZED';
 
-interface ProjectState {
+interface Project {
+    id: number;
+    name: string;
+    status: 'RUNNING' | 'IDLE';
     stage: ProjectStage;
+    container_id?: string;
+}
+
+interface ProjectState {
+    currentProject: Project | null;
+    projects: Project[];
     testCases: { id: number; status: 'idle' | 'pass' | 'fail' }[];
     lastLog: string;
+    stats: { cpu: string; memory: string } | null;
+
+    setProjects: (projects: Project[]) => void;
+    setCurrentProject: (project: Project | null) => void;
     setStage: (stage: ProjectStage) => void;
-    runTestCase: (id: number, status: 'pass' | 'fail') => void;
+    setStats: (stats: { cpu: string; memory: string } | null) => void;
     addLog: (log: string) => void;
+    clearLogs: () => void;
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
-    stage: 'LOCKED',
+    currentProject: null,
+    projects: [],
     testCases: [
         { id: 1, status: 'pass' },
         { id: 2, status: 'pass' },
@@ -20,10 +35,13 @@ export const useProjectStore = create<ProjectState>((set) => ({
         { id: 4, status: 'idle' },
         { id: 5, status: 'idle' },
     ],
-    lastLog: '$ openv_run_sim --all\n[INFO] Running Test Case 3...\n[FAIL] Assertion error in ALU carry bit.',
-    setStage: (stage) => set({ stage }),
-    runTestCase: (id, status) => set((state) => ({
-        testCases: state.testCases.map(tc => tc.id === id ? { ...tc, status } : tc)
-    })),
-    addLog: (log) => set((state) => ({ lastLog: state.lastLog + '\n' + log }))
+    lastLog: '',
+    stats: null,
+
+    setProjects: (projects) => set({ projects }),
+    setCurrentProject: (project) => set({ currentProject: project }),
+    setStage: (stage) => set({ currentProject: stage ? { ...useProjectStore.getState().currentProject!, stage } : null }),
+    setStats: (stats) => set({ stats }),
+    addLog: (log) => set((state) => ({ lastLog: state.lastLog + (state.lastLog ? '\n' : '') + log })),
+    clearLogs: () => set({ lastLog: '' }),
 }));
