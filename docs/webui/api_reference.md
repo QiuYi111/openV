@@ -1,57 +1,54 @@
 # OpenV Web Space: Frontend API Reference
 
-This document details the internal state management and component communication APIs used by the OpenV Frontend.
+This document details the internal state management, store structures, and backend API integration used by the OpenV Frontend.
 
-## 📦 State Store (Zustand)
+## 📦 State Stores (Zustand)
 
-The frontend uses `src/store.ts` to manage global project state.
+### 1. `AuthStore` (`src/authStore.ts`)
+Manages user authentication lifecycle and JWT persistence.
 
-### `ProjectState` Interface
+- **State**:
+    - `token`: `string | null` (The JWT access token)
+    - `user`: `User | null` (User profile info)
+    - `isAuthenticated`: `boolean`
+- **Actions**:
+    - `setAuth(token, user)`: Updates session and persists to `localStorage`.
+    - `logout()`: Clears session and local storage.
 
-```typescript
-type ProjectStage = 'IDLE' | 'LOCKED' | 'LINT_PASSED' | 'VERIFIED' | 'SYNTHESIZED';
+### 2. `ProjectStore` (`src/store.ts`)
+Manages project directory, active project state, and container control.
 
-interface ProjectState {
-  stage: ProjectStage;
-  testCases: { id: number; status: 'idle' | 'pass' | 'fail' }[];
-  lastLog: string;
-}
-```
-
-### Actions
-
-| Action | Description |
-| :--- | :--- |
-| `setStage(stage: ProjectStage)` | Updates the current lifecycle stage of the project. |
-| `runTestCase(id: number, status: 'pass' \| 'fail')` | Updates the status of a specific test case in the TDD pipeline. |
-| `addLog(log: string)` | Appends a new entry to the integrated terminal log. |
-
-## 🧩 Component APIs
-
-### `CodeEditor`
-Responsible for the main workspace editing.
-- **Props**:
-  - `fileName`: string (active file name)
-  - `code`: string (content)
-  - `language`: 'verilog' | 'python' | 'markdown'
-  - `onChange`: (value: string) => void
-
-### `AgentChat`
-Internal AI agent communication.
-- **Internal State**: Reactive message list supporting `text`, `diff`, and `action` types.
-- **Action Triggers**: Emits store updates (e.g., `setStage`) based on user interaction with AI-suggested buttons.
-
-### `CommandPalette`
-Global tool dispatcher.
-- **Trigger**: `Cmd+K` or `Ctrl+K`
-- **Commands Map**:
-  - `/lint` -> Triggers `openv_lint` simulation.
-  - `/sim` -> Triggers `openv_run_sim`.
-  - `/synth` -> Triggers `openv_synth`.
+- **State**:
+    - `projects`: `Project[]` (List of user projects)
+    - `currentProject`: `Project | null`
+    - `stats`: `ResourceStats | null` (CPU/Memory metrics)
+- **Lifecycle Actions**:
+    - `fetchProjects()`: GET `/projects/`
+    - `setCurrentProject(project)`: Switches active workspace context.
+    - `startProject(id)`: POST `/projects/{id}/start`
+    - `stopProject(id)`: POST `/projects/{id}/stop`
 
 ## 📡 Remote Sync (SaaS API)
 
-Currently, the frontend uses a mock implementation in the Store. Real implementation will target:
-- **Base URL**: `APP_BACKEND_URL`
-- **WebSocket Path**: `/ws/logs`
-- **File Endpoints**: `/api/files/*`
+The frontend communicates with the FastAPI backend at `http://localhost:8000`.
+
+### REST Endpoints
+| Endpoint | Method | Description |
+| :--- | :--- | :--- |
+| `/auth/register` | POST | Register new user. |
+| `/auth/login` | POST | Obtain JWT (OAuth2 Password Flow). |
+| `/projects/` | GET/POST | List and create projects. |
+| `/projects/{id}/start` | POST | Spawn Docker container for project. |
+| `/projects/{id}/stop` | POST | Terminate project container. |
+| `/projects/{id}/stats` | GET | Retrieve real-time Docker metrics. |
+
+### WebSockets
+- **Terminal Gateway**: `ws://localhost:8000/ws/terminal/{project_id}?token={jwt}`
+    - Bi-directional TTY streaming (xterm.js compatible).
+    - Requires authenticated token as query parameter.
+
+## 🏗 Component Integration
+
+- **`TerminalComponent`**: Links to the Terminal Gateway. Uses `xterm-addon-fit` for responsive resizing.
+- **`AuthComponent`**: Handles the Login/Register UI toggle and interacts with `AuthStore`.
+- **`MainLayout`**: Orchestrates sidebars and workspace. Implements polling for `/stats` when a project is `RUNNING`.
