@@ -11,6 +11,13 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Security check
+    if settings.SECRET_KEY == "supersecret":
+        print("\n" + "="*60)
+        print("WARNING: You are using the default insecure SECRET_KEY.")
+        print("For production, set SECRET_KEY in your .env file!")
+        print("="*60 + "\n")
+
     create_db_and_tables()
     # Start the Reaper as a background task
     reaper = get_reaper()
