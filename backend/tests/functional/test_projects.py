@@ -43,8 +43,6 @@ def test_project_lifecycle(client):
     
     # 1. Start Project
     start_res = client.post(f"/projects/{project_id}/start", headers=headers)
-    if start_res.status_code != 200:
-        print(f"Start Project Error: {start_res.json()}")
     assert start_res.status_code == 200
     assert start_res.json()["status"] == "RUNNING"
     assert start_res.json()["container_id"] is not None

@@ -22,6 +22,10 @@ def session_fixture():
 def client_fixture(session: Session):
     def get_session_override():
         return session
+    
+    from app.config import get_settings
+    settings = get_settings()
+    settings.DEFAULT_IMAGE = "alpine:latest"
 
     app.dependency_overrides[get_session] = get_session_override
     from fastapi.testclient import TestClient
