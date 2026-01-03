@@ -2,11 +2,17 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPExce
 from sqlmodel import Session
 from app.database import get_session
 from app.models import Project, User
-from app.routers.auth import get_current_user, ALGORITHM, SECRET_KEY
+from app.routers.auth import get_current_user
+from app.config import get_settings
 from app.services.container_manager import ContainerManager
 from jose import jwt, JWTError
 import asyncio
 import socket
+from datetime import datetime, timezone
+
+settings = get_settings()
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
 
 router = APIRouter(prefix="/ws", tags=["terminal"])
 container_manager = ContainerManager()
@@ -40,7 +46,7 @@ async def terminal_websocket(
     try:
         user = await get_user_from_token(token, session)
     except HTTPException:
-        await websocket.close(code=1008) # Policy Violation
+        await websocket.close(code=1008)
         return
 
     # 2. Project check
@@ -49,30 +55,33 @@ async def terminal_websocket(
         await websocket.close(code=1008)
         return
 
+    # Initial heartbeat
+    project.updated_at = datetime.now(timezone.utc)
+    session.add(project)
+    session.commit()
+
     try:
-        # 3. Get Docker exec socket
-        # docker-py's stream=True returns a blocking generator
         docker_socket = container_manager.get_exec_socket(project.container_id)
         
+        async def heartbeat_loop():
+            """Periodically update project.updated_at while terminal is open"""
+            try:
+                while True:
+                    await asyncio.sleep(60) # Every minute
+                    from app.database import engine
+                    with Session(engine) as heartbeat_session:
+                        p = heartbeat_session.get(Project, project_id)
+                        if p:
+                            p.updated_at = datetime.now(timezone.utc)
+                            heartbeat_session.add(p)
+                            heartbeat_session.commit()
+            except asyncio.CancelledError:
+                pass
+
         async def read_from_socket():
             try:
-                # Wrap the blocking generator in an async generator or run in thread
-                def get_output():
-                    for chunk in docker_socket:
-                        yield chunk
-                
-                # We can't easily iterate a sync generator in a thread as an async generator
-                # without more complexity. Let's use a simple thread loop that sends to WS.
-                def thread_worker():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    for chunk in docker_socket:
-                        # This is tricky because we need to send to the WS from another thread
-                        # Better to use a queue or just to_thread for each recv/send
-                        pass
-                
-                # Simplest fix: read one chunk at a time in a thread
                 while True:
+                    # Read from blocking generator in thread
                     chunk = await asyncio.to_thread(next, docker_socket, None)
                     if chunk is None:
                         break
@@ -84,7 +93,6 @@ async def terminal_websocket(
             try:
                 while True:
                     data = await websocket.receive_text()
-                    # Write to the underlying socket in a thread to be safe
                     if hasattr(docker_socket, '_sock'):
                         await asyncio.to_thread(docker_socket._sock.send, data.encode())
             except WebSocketDisconnect:
@@ -92,9 +100,15 @@ async def terminal_websocket(
             except Exception as e:
                 print(f"Error writing to docker socket: {e}")
 
-        # Run both tasks. When one ends (e.g. WS disconnect), cancel the other.
+        # Run tasks concurrently
+        tasks = [
+            asyncio.create_task(read_from_socket()),
+            asyncio.create_task(write_to_socket()),
+            asyncio.create_task(heartbeat_loop())
+        ]
+        
         done, pending = await asyncio.wait(
-            [asyncio.create_task(read_from_socket()), asyncio.create_task(write_to_socket())],
+            tasks,
             return_when=asyncio.FIRST_COMPLETED
         )
         for task in pending:
@@ -103,4 +117,7 @@ async def terminal_websocket(
     except Exception as e:
         print(f"Terminal error: {e}")
     finally:
-        await websocket.close()
+        try:
+            await websocket.close()
+        except:
+            pass

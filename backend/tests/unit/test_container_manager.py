@@ -13,7 +13,13 @@ def test_start_container(mock_docker_client):
     mock_container.id = "test_id"
     mock_docker_client.return_value.containers.run.return_value = mock_container
     
-    container_id = manager.start_container("test_project", "/tmp/test_project", "openv-env:latest")
+    container_id = manager.start_container(
+        project_name="test_project",
+        user_id=1,
+        project_id=1,
+        image="openv-env:latest",
+        command="tail -f /dev/null"
+    )
     
     assert container_id == "test_id"
     mock_docker_client.return_value.containers.run.assert_called_once()

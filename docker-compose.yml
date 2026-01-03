@@ -1,0 +1,30 @@
+services:
+  backend:
+    build: ./backend
+    container_name: openv_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - backend_data:/app/data
+      - project_workspace:/workspace/projects
+    environment:
+      - SECRET_KEY=changethisinproduction
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DOCKER_BASE_PATH=/workspace/projects
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: openv_frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
+    restart: always
+
+volumes:
+  backend_data:
+  project_workspace:

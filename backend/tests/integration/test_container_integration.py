@@ -15,7 +15,13 @@ def test_real_container_lifecycle():
     image = "alpine:latest"
     
     # 1. Start with a command that keeps the container alive
-    container_id = manager.start_container(project_name, host_path, image, command="tail -f /dev/null")
+    container_id = manager.start_container(
+        project_name=project_name, 
+        user_id=1,
+        project_id=1,
+        image=image, 
+        command="tail -f /dev/null"
+    )
     assert container_id is not None
     
     # Verify it exists

@@ -8,6 +8,8 @@ import TerminalComponent from './Terminal';
 import { useProjectStore } from '../store';
 import { useAuthStore } from '../authStore';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { projects, currentProject, setProjects, setCurrentProject, stats, setStats, setStage } = useProjectStore();
     const { token, logout, user } = useAuthStore();
@@ -20,7 +22,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
     const fetchProjects = async () => {
         try {
-            const res = await fetch('http://localhost:8000/projects/', {
+            const res = await fetch(`${API_BASE_URL}/projects/`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -37,7 +39,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         const name = prompt('Enter project name:');
         if (!name || !token) return;
         try {
-            const res = await fetch('http://localhost:8000/projects/', {
+            const res = await fetch(`${API_BASE_URL}/projects/`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, description: 'Created from web UI' })
@@ -54,7 +56,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         if (!currentProject || !token) return;
         const action = currentProject.status === 'RUNNING' ? 'stop' : 'start';
         try {
-            const res = await fetch(`http://localhost:8000/projects/${currentProject.id}/${action}`, {
+            const res = await fetch(`${API_BASE_URL}/projects/${currentProject.id}/${action}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -72,7 +74,7 @@ const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         if (currentProject?.status === 'RUNNING' && token) {
             const fetchStats = async () => {
                 try {
-                    const res = await fetch(`http://localhost:8000/projects/${currentProject.id}/stats`, {
+                    const res = await fetch(`${API_BASE_URL}/projects/${currentProject.id}/stats`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     const data = await res.json();

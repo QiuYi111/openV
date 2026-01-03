@@ -9,12 +9,37 @@ interface Message {
 }
 
 import { useProjectStore } from '../store';
+import { useAuthStore } from '../authStore';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const AgentChat: React.FC = () => {
-    const { addLog, runTestCase, setStage } = useProjectStore();
-    const [messages, setMessages] = React.useState<Message[]>([
-        { id: '1', role: 'assistant', content: 'How can I help with your Verilog design today?' }
-    ]);
+    const { addLog, runTestCase, setStage, currentProject } = useProjectStore();
+    const { token } = useAuthStore();
+    const [messages, setMessages] = React.useState<Message[]>([]);
+
+    // Load messages on mount or project change
+    React.useEffect(() => {
+        if (currentProject && token) {
+            fetchMessages();
+        } else {
+            setMessages([]);
+        }
+    }, [currentProject?.id, token]);
+
+    const fetchMessages = async () => {
+        try {
+            const res = await fetch(`${API_BASE_URL}/projects/${currentProject!.id}/messages`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setMessages(data);
+            }
+        } catch (e) {
+            console.error("Failed to fetch messages", e);
+        }
+    };
     const [input, setInput] = React.useState('');
 
     const handleAction = (type: string) => {
@@ -23,27 +48,38 @@ const AgentChat: React.FC = () => {
             setTimeout(() => {
                 runTestCase(3, 'pass');
                 addLog('[SUCCESS] Test Case 3 passed.\n[SUCCESS] Simulation complete: VERIFIED.');
-                setStage('VERIFIED');
+                if (token) setStage('VERIFIED', token);
             }, 1500);
         }
     };
 
-    const handleSend = () => {
-        if (!input.trim()) return;
-        const userMsg: Message = { id: Date.now().toString(), role: 'user', content: input };
-        setMessages(prev => [...prev, userMsg]);
+    const handleSend = async () => {
+        if (!input.trim() || !currentProject || !token) return;
+
+        const content = input;
         setInput('');
 
-        // Mock AI response
-        setTimeout(() => {
-            const aiMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                content: 'I see you want to run simulation. Should I trigger `openv_run_sim` for `alu.v`?',
-                type: 'action'
-            };
-            setMessages(prev => [...prev, aiMsg]);
-        }, 1000);
+        // Optimistic update
+        const tempId = Date.now().toString();
+        const userMsg: Message = { id: tempId, role: 'user', content };
+        setMessages(prev => [...prev, userMsg]);
+
+        try {
+            // Save user message (Backend handles Autopilot if content starts with /)
+            const res = await fetch(`${API_BASE_URL}/projects/${currentProject.id}/messages`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: 'user', content })
+            });
+
+            if (res.ok) {
+                // Fetch all messages (including potential AI responses from Autopilot)
+                fetchMessages();
+            }
+
+        } catch (e) {
+            console.error("Failed to send message", e);
+        }
     };
 
     return (

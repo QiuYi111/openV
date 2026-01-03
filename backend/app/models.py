@@ -19,3 +19,12 @@ class Project(SQLModel, table=True):
     status: str = Field(default="IDLE")
     stage: str = Field(default="IDLE")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ChatMessage(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    project_id: int = Field(foreign_key="project.id", index=True)
+    role: str # "user" or "assistant"
+    content: str
+    type: str = Field(default="text") # "text", "diff", "action"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

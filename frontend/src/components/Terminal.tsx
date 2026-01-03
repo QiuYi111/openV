@@ -35,9 +35,9 @@ const TerminalComponent: React.FC<TerminalProps> = ({ projectId, token }) => {
 
         xtermRef.current = term;
 
-        // Connect WebSocket
-        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${protocol}://localhost:8000/ws/terminal/${projectId}?token=${token}`;
+        // Connect WebSocket using environment variable
+        const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
+        const wsUrl = `${wsBaseUrl}/ws/terminal/${projectId}?token=${token}`;
         const ws = new WebSocket(wsUrl);
         socketRef.current = ws;
 

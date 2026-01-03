@@ -11,13 +11,18 @@ from pydantic import BaseModel, ConfigDict
 
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 
+from app.config import get_settings
+
+settings = get_settings()
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-SECRET_KEY = "supersecret" # In production, use env var
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Secret keys from settings
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 class UserCreate(BaseModel):
     username: str
@@ -99,3 +104,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = D
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.get("/me", response_model=UserRead)
+def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user

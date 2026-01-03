@@ -4,9 +4,12 @@ from app.database import get_session
 from app.models import Project, User
 from app.routers.auth import get_current_user
 from app.services.container_manager import ContainerManager
+from app.config import get_settings
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
 import os
+
+settings = get_settings()
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 container_manager = ContainerManager()
@@ -80,6 +83,7 @@ def update_project_stage(
         raise HTTPException(status_code=400, detail="Invalid stage")
         
     project.stage = stage_update.stage.upper()
+    project.updated_at = datetime.now(timezone.utc)
     session.add(project)
     session.commit()
     session.refresh(project)
@@ -99,19 +103,24 @@ def start_project(
         # Container already exists, maybe try to restart or just return it
         return project
 
-    # In a real app, user path would be determined by a config or user ID
-    host_path = f"/tmp/openv_projects/{current_user.id}/{project.id}"
-    
     try:
         # We use a standard image for RTL dev
+        # Prepare extra environment variables (e.g., API Keys)
+        extra_env = {}
+        if settings.ANTHROPIC_API_KEY:
+            extra_env["ANTHROPIC_API_KEY"] = settings.ANTHROPIC_API_KEY
+
         container_id = container_manager.start_container(
             project_name=project.name,
-            host_path=host_path,
-            image="alpine:latest", # Placeholder for actual RTL image
-            command="tail -f /dev/null"
+            user_id=current_user.id,
+            project_id=project.id,
+            image="openv-env:latest", 
+            command="tail -f /dev/null",
+            extra_env=extra_env
         )
         project.container_id = container_id
         project.status = "RUNNING"
+        project.updated_at = datetime.now(timezone.utc)
         session.add(project)
         session.commit()
         session.refresh(project)
@@ -135,6 +144,9 @@ def get_project_stats(
         raise HTTPException(status_code=400, detail="Container not running")
         
     try:
+        project.updated_at = datetime.now(timezone.utc)
+        session.add(project)
+        session.commit()
         stats = container_manager.get_container_stats(project.container_id)
         return stats
     except Exception as e:

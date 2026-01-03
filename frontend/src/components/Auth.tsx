@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '../authStore';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
 const Auth: React.FC = () => {
     const [isLogin, setIsLogin] = useState(true);
     const [email, setEmail] = useState('');
@@ -19,7 +21,7 @@ const Auth: React.FC = () => {
                 ? new URLSearchParams({ username: email, password })
                 : JSON.stringify({ email, password, username });
 
-            const res = await fetch(`http://localhost:8000${endpoint}`, {
+            const res = await fetch(`${API_BASE_URL}${endpoint}`, {
                 method: 'POST',
                 headers: isLogin ? { 'Content-Type': 'application/x-www-form-urlencoded' } : { 'Content-Type': 'application/json' },
                 body
@@ -30,7 +32,7 @@ const Auth: React.FC = () => {
             const data = await res.json();
             if (isLogin) {
                 // Fetch current user info after login
-                const userRes = await fetch('http://localhost:8000/auth/me', {
+                const userRes = await fetch(`${API_BASE_URL}/auth/me`, {
                     headers: { 'Authorization': `Bearer ${data.access_token}` }
                 });
                 const userData = await userRes.json();

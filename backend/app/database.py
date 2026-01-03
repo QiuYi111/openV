@@ -1,7 +1,8 @@
 from sqlmodel import SQLModel, create_engine, Session
-import os
+from app.config import get_settings
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./openv.db")
+settings = get_settings()
+DATABASE_URL = settings.DATABASE_URL
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 
