@@ -1,4 +1,5 @@
 import React from 'react';
+import { useProjectStore } from '../store';
 
 interface WaveformSignal {
     name: string;
@@ -6,13 +7,30 @@ interface WaveformSignal {
 }
 
 const WaveformViewer: React.FC = () => {
-    const signals: WaveformSignal[] = [
-        { name: 'clk', data: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1] },
-        { name: 'reset', data: [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-        { name: 'addr[7:0]', data: [0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 0, 0, 0, 0, 0] },
-        { name: 'data_in[7:0]', data: [0, 0, 0, 10, 10, 20, 20, 30, 30, 40, 40, 0, 0, 0, 0, 0] },
-        { name: 'ready', data: [0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0] },
-    ];
+    const { currentProject, vcdFiles, selectedVcdMetadata, fetchVcdFiles, fetchVcdMetadata } = useProjectStore();
+    const token = localStorage.getItem('token') || ''; // Fallback for token
+
+    React.useEffect(() => {
+        if (currentProject && token && vcdFiles.length === 0) {
+            fetchVcdFiles(token);
+        }
+    }, [currentProject?.id, token]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        if (e.target.value && token) {
+            fetchVcdMetadata(e.target.value, token);
+        }
+    };
+
+    const signals: WaveformSignal[] = selectedVcdMetadata?.signals?.map((s: any) => ({
+        name: s.name,
+        data: [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]
+    })) || [
+            { name: 'No VCD Loaded', data: [0, 0, 0, 0] }
+        ];
+
+    const filename = selectedVcdMetadata?.filename || 'No File Selected';
+    const timescale = selectedVcdMetadata?.timescale || '1ns';
 
     const stepWidth = 40;
     const signalHeight = 30;
@@ -27,8 +45,23 @@ const WaveformViewer: React.FC = () => {
             borderTop: '1px solid var(--border-soft)'
         }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>WAVEFORM VIEW (alu.v)</span>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)' }}>WAVEFORM VIEW</span>
+                <select
+                    onChange={handleFileChange}
+                    style={{
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-soft)',
+                        borderRadius: '4px',
+                        padding: '4px 8px',
+                        fontSize: '12px'
+                    }}
+                >
+                    <option value="">Select VCD...</option>
+                    {vcdFiles.map(f => <option key={f.path} value={f.name}>{f.name}</option>)}
+                </select>
                 <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-soft)' }} />
+                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{filename} ({timescale})</span>
             </div>
 
             <div style={{ display: 'flex' }}>
@@ -53,7 +86,7 @@ const WaveformViewer: React.FC = () => {
                     <svg width={signals[0].data.length * stepWidth} height={signals.length * (signalHeight + signalPadding)}>
                         {signals.map((sig, sigIdx) => (
                             <g key={sigIdx} transform={`translate(0, ${sigIdx * (signalHeight + signalPadding)})`}>
-                                {sig.data.map((val, stepIdx) => {
+                                {sig.data.map((val: number, stepIdx: number) => {
                                     const x = stepIdx * stepWidth;
                                     const nextVal = sig.data[stepIdx + 1];
                                     const y = val === 1 ? 5 : signalHeight - 5;
@@ -94,7 +127,7 @@ const WaveformViewer: React.FC = () => {
                     </svg>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 

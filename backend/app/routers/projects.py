@@ -8,6 +8,7 @@ from app.config import get_settings
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
 import os
+from datetime import datetime, timezone
 
 settings = get_settings()
 
@@ -26,6 +27,7 @@ class ProjectRead(BaseModel):
     stage: str
     user_id: int
     container_id: Optional[str] = None
+    test_results: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
@@ -114,7 +116,7 @@ def start_project(
             project_name=project.name,
             user_id=current_user.id,
             project_id=project.id,
-            image="openv-env:latest", 
+            image=settings.DEFAULT_IMAGE, 
             command="tail -f /dev/null",
             extra_env=extra_env
         )

@@ -54,7 +54,7 @@ def create_message(
     # Autopilot / Slash Command Logic
     if message.role == "user" and message.content.startswith("/"):
         if project.container_id:
-            result = ai_agent.process_slash_command(project.container_id, message.content)
+            result = ai_agent.process_slash_command(project.container_id, message.content, session, project.id)
             
             # Save AI response
             ai_message = ChatMessage(

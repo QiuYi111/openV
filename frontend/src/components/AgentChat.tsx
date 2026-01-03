@@ -14,7 +14,7 @@ import { useAuthStore } from '../authStore';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const AgentChat: React.FC = () => {
-    const { addLog, runTestCase, setStage, currentProject } = useProjectStore();
+    const { addLog, runTestCase, setStage, currentProject, syncProjectData } = useProjectStore();
     const { token } = useAuthStore();
     const [messages, setMessages] = React.useState<Message[]>([]);
 
@@ -75,6 +75,10 @@ const AgentChat: React.FC = () => {
             if (res.ok) {
                 // Fetch all messages (including potential AI responses from Autopilot)
                 fetchMessages();
+                // Sync project state (test_results) in case a slash command was run
+                if (content.startsWith('/')) {
+                    syncProjectData(token);
+                }
             }
 
         } catch (e) {

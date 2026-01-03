@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, FileText, Terminal as TerminalIcon, Settings, Activity, ShieldCheck, ShieldAlert, LineChart, Play, Square, LogOut, User as UserIcon, Plus } from 'lucide-react';
+import { Layout, FileText, Terminal as TerminalIcon, Activity, ShieldCheck, ShieldAlert, LineChart, Play, Square, LogOut, User as UserIcon, Plus } from 'lucide-react';
 import FileTree from './FileTree';
 import AgentChat from './AgentChat';
 import CommandPalette from './CommandPalette';
@@ -11,7 +11,7 @@ import { useAuthStore } from '../authStore';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 const MainLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { projects, currentProject, setProjects, setCurrentProject, stats, setStats, setStage } = useProjectStore();
+    const { projects, currentProject, setProjects, setCurrentProject, stats, setStats } = useProjectStore();
     const { token, logout, user } = useAuthStore();
     const [showCommandPalette, setShowCommandPalette] = React.useState(false);
     const [bottomPanelTab, setBottomPanelTab] = React.useState<'terminal' | 'waveform'>('terminal');

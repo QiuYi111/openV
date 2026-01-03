@@ -18,6 +18,7 @@ class Project(SQLModel, table=True):
     container_id: Optional[str] = None
     status: str = Field(default="IDLE")
     stage: str = Field(default="IDLE")
+    test_results: Optional[str] = None # Parsed JSON string of test results
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
