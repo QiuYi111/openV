@@ -28,6 +28,15 @@ class Settings(BaseSettings):
     
     # Allows overriding via .env file
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    
+    ENVIRONMENT: str = "development"
+
+    def model_post_init(self, __context):
+        if self.ENVIRONMENT == "production":
+            if self.SECRET_KEY == "supersecret":
+                raise ValueError("ERROR: You must set a strong SECRET_KEY in production mode!")
+            if self.SECRET_KEY == "change_me_in_prod": # Just in case
+                 raise ValueError("ERROR: You must set a strong SECRET_KEY in production mode!")
 
 @lru_cache()
 def get_settings():
