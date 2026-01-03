@@ -62,7 +62,8 @@ class ContainerManager:
             # Resource Limits
             mem_limit="512m",
             cpu_period=100000,
-            cpu_quota=50000 # 0.5 CPU
+            cpu_quota=50000, # 0.5 CPU
+            user="1000:1000" # Run as non-root for security
         )
         return container.id
 

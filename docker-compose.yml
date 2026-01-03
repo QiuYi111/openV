@@ -1,6 +1,6 @@
 services:
   backend:
-    build: ./backend
+    image: crpi-5901rc39czlvlzc5.cn-beijing.personal.cr.aliyuncs.com/open-v/openv-dev:backend-latest
     container_name: openv_backend
     ports:
       - "8000:8000"
@@ -15,7 +15,7 @@ services:
     restart: always
 
   frontend:
-    build: ./frontend
+    image: crpi-5901rc39czlvlzc5.cn-beijing.personal.cr.aliyuncs.com/open-v/openv-dev:frontend-latest
     container_name: openv_frontend
     ports:
       - "80:80"

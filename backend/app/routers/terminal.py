@@ -4,10 +4,9 @@ from app.database import get_session
 from app.models import Project, User
 from app.routers.auth import get_current_user
 from app.config import get_settings
-from app.services.container_manager import ContainerManager
 from jose import jwt, JWTError
 import asyncio
-import socket
+import aiodocker
 from datetime import datetime, timezone
 
 settings = get_settings()
@@ -15,7 +14,6 @@ SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 
 router = APIRouter(prefix="/ws", tags=["terminal"])
-container_manager = ContainerManager()
 
 async def get_user_from_token(token: str, session: Session):
     credentials_exception = HTTPException(status_code=401, detail="Invalid token")
@@ -60,14 +58,27 @@ async def terminal_websocket(
     session.add(project)
     session.commit()
 
+    docker = aiodocker.Docker()
     try:
-        docker_socket = container_manager.get_exec_socket(project.container_id)
+        container = await docker.containers.get(project.container_id)
         
+        # Create an exec instance
+        exec_instance = await container.exec(
+            cmd="/bin/sh",
+            stdin=True,
+            stdout=True,
+            stderr=True,
+            tty=True
+        )
+        
+        # Start the exec instance and get a stream
+        stream = exec_instance.start(detach=False)
+
         async def heartbeat_loop():
             """Periodically update project.updated_at while terminal is open"""
             try:
                 while True:
-                    await asyncio.sleep(60) # Every minute
+                    await asyncio.sleep(60)
                     from app.database import engine
                     with Session(engine) as heartbeat_session:
                         p = heartbeat_session.get(Project, project_id)
@@ -78,32 +89,29 @@ async def terminal_websocket(
             except asyncio.CancelledError:
                 pass
 
-        async def read_from_socket():
+        async def read_from_container():
             try:
-                while True:
-                    # Read from blocking generator in thread
-                    chunk = await asyncio.to_thread(next, docker_socket, None)
-                    if chunk is None:
-                        break
-                    await websocket.send_text(chunk.decode(errors='replace'))
+                async for message in stream:
+                    if message and message.data:
+                        # aiodocker stream returns message objects with type and data
+                        await websocket.send_text(message.data.decode(errors='replace'))
             except Exception as e:
-                print(f"Error reading from docker socket: {e}")
+                print(f"Error reading from container: {e}")
 
-        async def write_to_socket():
+        async def write_to_container():
             try:
                 while True:
                     data = await websocket.receive_text()
-                    if hasattr(docker_socket, '_sock'):
-                        await asyncio.to_thread(docker_socket._sock.send, data.encode())
+                    await stream.write(data.encode())
             except WebSocketDisconnect:
                 pass
             except Exception as e:
-                print(f"Error writing to docker socket: {e}")
+                print(f"Error writing to container: {e}")
 
         # Run tasks concurrently
         tasks = [
-            asyncio.create_task(read_from_socket()),
-            asyncio.create_task(write_to_socket()),
+            asyncio.create_task(read_from_container()),
+            asyncio.create_task(write_to_container()),
             asyncio.create_task(heartbeat_loop())
         ]
         
@@ -117,6 +125,7 @@ async def terminal_websocket(
     except Exception as e:
         print(f"Terminal error: {e}")
     finally:
+        await docker.close()
         try:
             await websocket.close()
         except:
